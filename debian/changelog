@@ -1,3 +1,9 @@
+redis (2:3.0.4-4~bpo8+1) jessie-backports; urgency=medium
+
+  * Rebuild for jessie-backports.
+
+ -- Chris Lamb <lamby@debian.org>  Sun, 20 Sep 2015 15:06:50 +0100
+
 redis (2:3.0.4-4) unstable; urgency=medium
 
   * Make the parallel change in 2:30.4-3 to redis-server's initscript, not just
