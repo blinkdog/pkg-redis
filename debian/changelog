@@ -1,3 +1,30 @@
+redis (2:3.0.4-4) unstable; urgency=medium
+
+  * Make the parallel change in 2:30.4-3 to redis-server's initscript, not just
+    redis-sentinel's.
+
+ -- Chris Lamb <lamby@debian.org>  Mon, 14 Sep 2015 14:18:42 +0100
+
+redis (2:3.0.4-3) unstable; urgency=medium
+
+  * Specific `-s /bin/sh` in su's call to start run-parts as the redis's user's
+    shell of /bin/false was preventing it from starting under sysvinit. Thanks to
+    Michal Humpula <michal.humpula@hudrydum.cz>. (Closes: #798951)
+
+ -- Chris Lamb <lamby@debian.org>  Mon, 14 Sep 2015 14:13:26 +0100
+
+redis (2:3.0.4-2) unstable; urgency=medium
+
+  * Add PIDFile= to systemd service files.
+  * Run /etc/redis/redis-server.post-up.d (etc.) under the 'redis' user, not
+    root in initscript.
+    - Document this in 00_example files.
+  * Execute run-parts files under systemd, not just under sysvinit.
+    (Closes: #798771)
+  * Add rudimentary hardening under systemd. (Closes: #798770)
+
+ -- Chris Lamb <lamby@debian.org>  Sun, 13 Sep 2015 07:18:13 +0100
+
 redis (2:3.0.4-1~bpo8+1) jessie-backports; urgency=medium
 
   * Rebuild for jessie-backports.
