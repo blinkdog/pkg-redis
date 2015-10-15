@@ -1,3 +1,48 @@
+redis (2:3.0.5-1) unstable; urgency=medium
+
+  * New upstream release.
+    - Sync ./redis.conf and ./debian/redis.conf.
+
+ -- Chris Lamb <lamby@debian.org>  Thu, 15 Oct 2015 16:12:17 +0100
+
+redis (2:3.0.4-8) unstable; urgency=medium
+
+  * Use `ProtectSystem=true` over `ProtectSystem=full` in
+    redis-sentinel.service so that it can write its own configuration file
+    under /etc. Thanks to Pete Hicks <jph@bebo.com> for the report and fix.
+    (Closes: #799696)
+
+ -- Chris Lamb <lamby@debian.org>  Tue, 13 Oct 2015 20:46:23 +0100
+
+redis (2:3.0.4-7) unstable; urgency=medium
+
+  * Change the default (and commented-out) value for "unixsocket" from
+    /tmp/redis.sock -> /var/run/redis/redis.sock so that it will work even
+    under systemd's PrivateTmp=True. Thanks to 
+    Chris <Fisch.666@gmx.de> (Closes: #801464)
+
+ -- Chris Lamb <lamby@debian.org>  Sat, 10 Oct 2015 21:11:57 +0200
+
+redis (2:3.0.4-6) unstable; urgency=medium
+
+  * Allow redis-sentinel to actually write to its own directory;
+    ReadWriteDirectories cannot take a filename as I previously thought.
+    Thanks to Bernd Zeimetz <b.zeimetz@conova.com> for the prompt report.
+    (Closes: #799696)
+
+ -- Chris Lamb <lamby@debian.org>  Tue, 29 Sep 2015 23:24:31 +0200
+
+redis (2:3.0.4-5) unstable; urgency=medium
+
+  * Don't install /etc/redis/{redis,sentinel}.conf world-readable as they may
+    contain passwords, additionally setting the ownership to ensure they can
+    read their own configuration. (Closes: #800435)
+  * Disable CAP_SYS_PTRACE in systemd service files
+  * Add Documentation= header to systemd service files.
+  * Add a "redis" systemd unit alias.
+
+ -- Chris Lamb <lamby@debian.org>  Tue, 29 Sep 2015 17:42:22 +0200
+
 redis (2:3.0.4-4~bpo8+1) jessie-backports; urgency=medium
 
   * Rebuild for jessie-backports.
