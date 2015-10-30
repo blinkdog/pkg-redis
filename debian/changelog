@@ -1,3 +1,11 @@
+redis (2:2.8.17-1+deb8u2) stable; urgency=medium
+
+  * Backport debian/redis-server.tmpfile from unstable so that a valid runtime
+    directory is created when running under systemd. This ensures that there is
+    a secure and sensible location for the UNIX socket. (Closes: #803233)
+
+ -- Chris Lamb <lamby@debian.org>  Fri, 30 Oct 2015 18:53:34 +0000
+
 redis (2:2.8.17-1+deb8u1) jessie-security; urgency=high
 
   * Fix Lua sandbox bypass by disabling Lua bytecode loading
