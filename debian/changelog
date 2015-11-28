@@ -1,3 +1,12 @@
+redis (2:2.8.17-1+deb8u3) jessie-security; urgency=high
+
+  * Non-maintainer upload by the Security Team.
+  * Add 06-CVE-2015-8080-Integer-wraparound-in-lua_struct.c-cau.patch patch.
+    CVE-2015-8080: Integer wraparound in lua_struct.c causing stack-based
+    buffer overflow. (Closes: #804419)
+
+ -- Salvatore Bonaccorso <carnil@debian.org>  Sat, 28 Nov 2015 16:12:05 +0100
+
 redis (2:2.8.17-1+deb8u2) stable; urgency=medium
 
   * Backport debian/redis-server.tmpfile from unstable so that a valid runtime
