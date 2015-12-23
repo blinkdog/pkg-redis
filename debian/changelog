@@ -1,8 +1,8 @@
-redis (2:3.2~rc1-3) UNRELEASED; urgency=medium
+redis (2:3.2~rc1-3) experimental; urgency=medium
 
   * Ensure that we always properly cleanup test processes (Closes: #808862)
 
- -- Chris Lamb <lamby@debian.org>  Wed, 23 Dec 2015 22:15:11 +0000
+ -- Chris Lamb <lamby@debian.org>  Wed, 23 Dec 2015 22:15:43 +0000
 
 redis (2:3.2~rc1-2) experimental; urgency=medium
 
