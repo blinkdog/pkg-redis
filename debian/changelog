@@ -1,3 +1,18 @@
+redis (2:3.0.6-2) UNRELEASED; urgency=medium
+
+  * Ensure that we always properly cleanup test processes (Closes: #808862)
+
+ -- Chris Lamb <lamby@debian.org>  Wed, 23 Dec 2015 22:15:11 +0000
+
+redis (2:3.0.6-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Drop 06-CVE-2015-8080-Integer-wraparound-in-lua_struct.c-cau.patch as an
+    equivalent change merged upstream.
+  * Don't fail if redis user already exists. (Closes: #774736)
+
+ -- Chris Lamb <lamby@debian.org>  Sat, 19 Dec 2015 11:27:41 +0000
+
 redis (2:3.0.5-4~bpo8+1) jessie-backports; urgency=medium
 
   * Rebuild for jessie-backports.
