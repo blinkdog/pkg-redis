@@ -1,3 +1,10 @@
+redis (2:3.2.0~rc3-1) UNRELEASED; urgency=medium
+
+  * New upstream RC release.
+  * No need for pkill if we depend on procps.
+
+ -- Chris Lamb <lamby@debian.org>  Fri, 29 Jan 2016 15:05:28 +0100
+
 redis (2:3.2~rc1-3) experimental; urgency=medium
 
   * Ensure that we always properly cleanup test processes (Closes: #808862)
