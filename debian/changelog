@@ -3,7 +3,7 @@ redis (2:3.2.0-2~bpo8+1) jessie-backports; urgency=medium
   * Rebuild for jessie-backports.
     - Drop debian/patches/05-CVE-2015-4335.patch.
 
- -- Chris Lamb <lamby@debian.org>  Sat, 14 May 2016 09:10:55 +0100
+ -- Chris Lamb <lamby@debian.org>  Sat, 14 May 2016 09:22:01 +0100
 
 redis (2:3.2.0-2) unstable; urgency=medium
 
