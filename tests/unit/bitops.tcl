@@ -1,4 +1,4 @@
-# Compare Redis commadns against Tcl implementations of the same commands.
+# Compare Redis commands against Tcl implementations of the same commands.
 proc count_bits s {
     binary scan $s b* bits
     string length [regsub -all {0} $bits {}]
@@ -88,7 +88,7 @@ start_server {tags {"bitops"}} {
     } {ERR*syntax*}
 
     test {BITCOUNT regression test for github issue #582} {
-        r del str
+        r del foo
         r setbit foo 0 1
         if {[catch {r bitcount foo 0 4294967296} e]} {
             assert_match {*ERR*out of range*} $e
@@ -125,7 +125,7 @@ start_server {tags {"bitops"}} {
     test {BITOP where dest and target are the same key} {
         r set s "\xaa\x00\xff\x55"
         r bitop not s s
-        r get s 
+        r get s
     } "\x55\xff\x00\xaa"
 
     test {BITOP AND|OR|XOR don't change the string with single input key} {
