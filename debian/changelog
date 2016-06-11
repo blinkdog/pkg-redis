@@ -2,7 +2,7 @@ redis (2:3.2.0-3~bpo8+1) jessie-backports; urgency=medium
 
   * Rebuild for jessie-backports.
 
- -- Chris Lamb <lamby@debian.org>  Sat, 11 Jun 2016 11:40:43 +0100
+ -- Chris Lamb <lamby@debian.org>  Sat, 11 Jun 2016 11:51:23 +0100
 
 redis (2:3.2.0-3) unstable; urgency=medium
 
