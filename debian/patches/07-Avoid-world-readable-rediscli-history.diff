@@ -1,0 +1,27 @@
+diff --git a/deps/linenoise/linenoise.c b/deps/linenoise/linenoise.c
+index aef5cdd..3b780ee 100644
+--- a/deps/linenoise/linenoise.c
++++ b/deps/linenoise/linenoise.c
+@@ -102,6 +102,7 @@
+ #include <string.h>
+ #include <stdlib.h>
+ #include <ctype.h>
++#include <sys/stat.h>
+ #include <sys/types.h>
+ #include <sys/ioctl.h>
+ #include <unistd.h>
+@@ -1056,10 +1057,14 @@ int linenoiseHistorySetMaxLen(int len) {
+ /* Save the history in the specified file. On success 0 is returned
+  * otherwise -1 is returned. */
+ int linenoiseHistorySave(const char *filename) {
++    mode_t old_umask;
++    old_umask = umask(S_IXUSR|S_IRWXG|S_IRWXO);
+     FILE *fp = fopen(filename,"w");
++    umask(old_umask);
+     int j;
+     
+     if (fp == NULL) return -1;
++    chmod(filename,S_IRUSR|S_IWUSR);
+     for (j = 0; j < history_len; j++)
+         fprintf(fp,"%s\n",history[j]);
+     fclose(fp);

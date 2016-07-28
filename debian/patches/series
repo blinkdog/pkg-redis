@@ -4,3 +4,4 @@
 04-dpkg-buildflags.diff -p1
 05-CVE-2015-4335.patch -p1
 06-CVE-2015-8080-Integer-wraparound-in-lua_struct.c-cau.patch -p1
+07-Avoid-world-readable-rediscli-history.diff -p1
