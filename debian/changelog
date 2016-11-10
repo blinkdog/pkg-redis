@@ -6,7 +6,7 @@ redis (3:3.2.5-2) unstable; urgency=medium
       dpkg-statoverride.
     - Set UMask= in .service files, at least to match SystemV initscripts.
 
- -- Chris Lamb <lamby@debian.org>  Thu, 03 Nov 2016 12:08:08 +0000
+ -- Chris Lamb <lamby@debian.org>  Thu, 10 Nov 2016 11:53:21 +0000
 
 redis (3:3.2.5-1~bpo8+1) jessie-backports; urgency=medium
 
