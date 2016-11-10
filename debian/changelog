@@ -1,3 +1,13 @@
+redis (3:3.2.5-2) unstable; urgency=medium
+
+  * Tighten permissions of /var/{lib,log}/redis. (Closes: #842987)
+    - chmod(1) directories to 0750.
+    - Allow local administrator to override permissions with
+      dpkg-statoverride.
+    - Set UMask= in .service files, at least to match SystemV initscripts.
+
+ -- Chris Lamb <lamby@debian.org>  Thu, 03 Nov 2016 12:08:08 +0000
+
 redis (3:3.2.5-1~bpo8+1) jessie-backports; urgency=medium
 
   * Rebuild for jessie-backports.
