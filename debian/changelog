@@ -1,3 +1,16 @@
+redis (3:3.2.5-4) unstable; urgency=medium
+
+  * Install upstream's MANIFESTO and README.md.
+
+ -- Chris Lamb <lamby@debian.org>  Wed, 23 Nov 2016 15:45:48 +0000
+
+redis (3:3.2.5-3) unstable; urgency=medium
+
+  * Also run redis-benchmark in autopkgtests to stress-test the installation
+    better.
+
+ -- Chris Lamb <lamby@debian.org>  Sun, 13 Nov 2016 15:03:18 +0000
+
 redis (3:3.2.5-2~bpo8+1) jessie-backports; urgency=medium
 
   * Rebuild for jessie-backports.
