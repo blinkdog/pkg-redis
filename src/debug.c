@@ -33,6 +33,7 @@
 
 #include <arpa/inet.h>
 #include <signal.h>
+#include <dlfcn.h>
 
 #ifdef HAVE_BACKTRACE
 #include <execinfo.h>
@@ -40,7 +41,6 @@
 #include <fcntl.h>
 #include "bio.h"
 #include <unistd.h>
-#include <dlfcn.h>
 #endif /* HAVE_BACKTRACE */
 
 #ifdef __CYGWIN__
@@ -165,10 +165,10 @@ void computeDatasetDigest(unsigned char *final) {
                 listTypeReleaseIterator(li);
             } else if (o->type == OBJ_SET) {
                 setTypeIterator *si = setTypeInitIterator(o);
-                robj *ele;
-                while((ele = setTypeNextObject(si)) != NULL) {
-                    xorObjectDigest(digest,ele);
-                    decrRefCount(ele);
+                sds sdsele;
+                while((sdsele = setTypeNextObject(si)) != NULL) {
+                    xorDigest(digest,sdsele,sdslen(sdsele));
+                    sdsfree(sdsele);
                 }
                 setTypeReleaseIterator(si);
             } else if (o->type == OBJ_ZSET) {
@@ -210,12 +210,12 @@ void computeDatasetDigest(unsigned char *final) {
                     dictEntry *de;
 
                     while((de = dictNext(di)) != NULL) {
-                        robj *eleobj = dictGetKey(de);
+                        sds sdsele = dictGetKey(de);
                         double *score = dictGetVal(de);
 
                         snprintf(buf,sizeof(buf),"%.17g",*score);
                         memset(eledigest,0,20);
-                        mixObjectDigest(eledigest,eleobj);
+                        mixDigest(eledigest,sdsele,sdslen(sdsele));
                         mixDigest(eledigest,buf,strlen(buf));
                         xorDigest(digest,eledigest,20);
                     }
@@ -224,20 +224,18 @@ void computeDatasetDigest(unsigned char *final) {
                     serverPanic("Unknown sorted set encoding");
                 }
             } else if (o->type == OBJ_HASH) {
-                hashTypeIterator *hi;
-                robj *obj;
-
-                hi = hashTypeInitIterator(o);
+                hashTypeIterator *hi = hashTypeInitIterator(o);
                 while (hashTypeNext(hi) != C_ERR) {
                     unsigned char eledigest[20];
+                    sds sdsele;
 
                     memset(eledigest,0,20);
-                    obj = hashTypeCurrentObject(hi,OBJ_HASH_KEY);
-                    mixObjectDigest(eledigest,obj);
-                    decrRefCount(obj);
-                    obj = hashTypeCurrentObject(hi,OBJ_HASH_VALUE);
-                    mixObjectDigest(eledigest,obj);
-                    decrRefCount(obj);
+                    sdsele = hashTypeCurrentObjectNewSds(hi,OBJ_HASH_KEY);
+                    mixDigest(eledigest,sdsele,sdslen(sdsele));
+                    sdsfree(sdsele);
+                    sdsele = hashTypeCurrentObjectNewSds(hi,OBJ_HASH_VALUE);
+                    mixDigest(eledigest,sdsele,sdslen(sdsele));
+                    sdsfree(sdsele);
                     xorDigest(digest,eledigest,20);
                 }
                 hashTypeReleaseIterator(hi);
@@ -253,14 +251,6 @@ void computeDatasetDigest(unsigned char *final) {
         dictReleaseIterator(di);
     }
 }
-
-#if defined(USE_JEMALLOC)
-void inputCatSds(void *result, const char *str) {
-    /* result is actually a (sds *), so re-cast it here */
-    sds *info = (sds *)result;
-    *info = sdscat(*info, str);
-}
-#endif
 
 void debugCommand(client *c) {
     if (c->argc == 1) {
@@ -305,10 +295,6 @@ void debugCommand(client *c) {
         "structsize -- Return the size of different Redis core C structures.");
         blen++; addReplyStatus(c,
         "htstats <dbid> -- Return hash table statistics of the specified Redis database.");
-        blen++; addReplyStatus(c,
-        "jemalloc info  -- Show internal jemalloc statistics.");
-        blen++; addReplyStatus(c,
-        "jemalloc purge -- Force jemalloc to release unused memory.");
         setDeferredMultiBulkLength(c,blenp,blen);
     } else if (!strcasecmp(c->argv[1]->ptr,"segfault")) {
         *((char*)-1) = 'x';
@@ -334,12 +320,12 @@ void debugCommand(client *c) {
         if (c->argc >= 3) c->argv[2] = tryObjectEncoding(c->argv[2]);
         serverAssertWithInfo(c,c->argv[0],1 == 2);
     } else if (!strcasecmp(c->argv[1]->ptr,"reload")) {
-        if (rdbSave(server.rdb_filename) != C_OK) {
+        if (rdbSave(server.rdb_filename,NULL) != C_OK) {
             addReply(c,shared.err);
             return;
         }
-        emptyDb(NULL);
-        if (rdbLoad(server.rdb_filename) != C_OK) {
+        emptyDb(-1,EMPTYDB_NO_FLAGS,NULL);
+        if (rdbLoad(server.rdb_filename,NULL) != C_OK) {
             addReplyError(c,"Error trying to load the RDB dump");
             return;
         }
@@ -347,7 +333,7 @@ void debugCommand(client *c) {
         addReply(c,shared.ok);
     } else if (!strcasecmp(c->argv[1]->ptr,"loadaof")) {
         if (server.aof_state == AOF_ON) flushAppendOnlyFile(1);
-        emptyDb(NULL);
+        emptyDb(-1,EMPTYDB_NO_FLAGS,NULL);
         if (loadAppendOnlyFile(server.aof_filename) != C_OK) {
             addReply(c,shared.err);
             return;
@@ -423,12 +409,14 @@ void debugCommand(client *c) {
             addReplyError(c,"Not an sds encoded string.");
         } else {
             addReplyStatusFormat(c,
-                "key_sds_len:%lld, key_sds_avail:%lld, "
-                "val_sds_len:%lld, val_sds_avail:%lld",
+                "key_sds_len:%lld, key_sds_avail:%lld, key_zmalloc: %lld, "
+                "val_sds_len:%lld, val_sds_avail:%lld, val_zmalloc: %lld",
                 (long long) sdslen(key),
                 (long long) sdsavail(key),
+                (long long) sdsZmallocSize(key),
                 (long long) sdslen(val->ptr),
-                (long long) sdsavail(val->ptr));
+                (long long) sdsavail(val->ptr),
+                (long long) getStringObjectSdsUsedMemory(val));
         }
     } else if (!strcasecmp(c->argv[1]->ptr,"populate") &&
                (c->argc == 3 || c->argc == 4)) {
@@ -522,30 +510,6 @@ void debugCommand(client *c) {
         stats = sdscat(stats,buf);
 
         addReplyBulkSds(c,stats);
-    } else if (!strcasecmp(c->argv[1]->ptr,"jemalloc") && c->argc == 3) {
-#if defined(USE_JEMALLOC)
-        if (!strcasecmp(c->argv[2]->ptr, "info")) {
-            sds info = sdsempty();
-            je_malloc_stats_print(inputCatSds, &info, NULL);
-            addReplyBulkSds(c, info);
-        } else if (!strcasecmp(c->argv[2]->ptr, "purge")) {
-            char tmp[32];
-            unsigned narenas = 0;
-            size_t sz = sizeof(unsigned);
-            if (!je_mallctl("arenas.narenas", &narenas, &sz, NULL, 0)) {
-                sprintf(tmp, "arena.%d.purge", narenas);
-                if (!je_mallctl(tmp, NULL, 0, NULL, 0)) {
-                    addReply(c, shared.ok);
-                    return;
-                }
-            }
-            addReplyError(c, "Error purging dirty pages");
-        } else {
-            addReplyErrorFormat(c, "Valid jemalloc debug fields: info, purge");
-        }
-#else
-        addReplyErrorFormat(c, "jemalloc support not available");
-#endif
     } else {
         addReplyErrorFormat(c, "Unknown DEBUG subcommand or wrong number of arguments for '%s'",
             (char*)c->argv[1]->ptr);
@@ -554,7 +518,7 @@ void debugCommand(client *c) {
 
 /* =========================== Crash handling  ============================== */
 
-void _serverAssert(char *estr, char *file, int line) {
+void _serverAssert(const char *estr, const char *file, int line) {
     bugReportStart();
     serverLog(LL_WARNING,"=== ASSERTION FAILED ===");
     serverLog(LL_WARNING,"==> %s:%d '%s' is not true",file,line,estr);
@@ -567,7 +531,7 @@ void _serverAssert(char *estr, char *file, int line) {
     *((char*)-1) = 'x';
 }
 
-void _serverAssertPrintClientInfo(client *c) {
+void _serverAssertPrintClientInfo(const client *c) {
     int j;
 
     bugReportStart();
@@ -591,7 +555,7 @@ void _serverAssertPrintClientInfo(client *c) {
     }
 }
 
-void serverLogObjectDebugInfo(robj *o) {
+void serverLogObjectDebugInfo(const robj *o) {
     serverLog(LL_WARNING,"Object type: %d", o->type);
     serverLog(LL_WARNING,"Object encoding: %d", o->encoding);
     serverLog(LL_WARNING,"Object refcount: %d", o->refcount);
@@ -611,23 +575,23 @@ void serverLogObjectDebugInfo(robj *o) {
     } else if (o->type == OBJ_ZSET) {
         serverLog(LL_WARNING,"Sorted set size: %d", (int) zsetLength(o));
         if (o->encoding == OBJ_ENCODING_SKIPLIST)
-            serverLog(LL_WARNING,"Skiplist level: %d", (int) ((zset*)o->ptr)->zsl->level);
+            serverLog(LL_WARNING,"Skiplist level: %d", (int) ((const zset*)o->ptr)->zsl->level);
     }
 }
 
-void _serverAssertPrintObject(robj *o) {
+void _serverAssertPrintObject(const robj *o) {
     bugReportStart();
     serverLog(LL_WARNING,"=== ASSERTION FAILED OBJECT CONTEXT ===");
     serverLogObjectDebugInfo(o);
 }
 
-void _serverAssertWithInfo(client *c, robj *o, char *estr, char *file, int line) {
+void _serverAssertWithInfo(const client *c, const robj *o, const char *estr, const char *file, int line) {
     if (c) _serverAssertPrintClientInfo(c);
     if (o) _serverAssertPrintObject(o);
     _serverAssert(estr,file,line);
 }
 
-void _serverPanic(char *msg, char *file, int line) {
+void _serverPanic(const char *msg, const char *file, int line) {
     bugReportStart();
     serverLog(LL_WARNING,"------------------------------------------------");
     serverLog(LL_WARNING,"!!! Software Failure. Press left mouse button to continue");
