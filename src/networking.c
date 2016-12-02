@@ -105,6 +105,7 @@ client *createClient(int fd) {
     c->repl_ack_off = 0;
     c->repl_ack_time = 0;
     c->slave_listening_port = 0;
+    c->slave_ip[0] = '\0';
     c->slave_capa = SLAVE_CAPA_NONE;
     c->reply = listCreate();
     c->reply_bytes = 0;
@@ -477,6 +478,15 @@ void addReplyDouble(client *c, double d) {
         slen = snprintf(sbuf,sizeof(sbuf),"$%d\r\n%s\r\n",dlen,dbuf);
         addReplyString(c,sbuf,slen);
     }
+}
+
+/* Add a long double as a bulk reply, but uses a human readable formatting
+ * of the double instead of exposing the crude behavior of doubles to the
+ * dear user. */
+void addReplyHumanLongDouble(client *c, long double d) {
+    robj *o = createStringObjectFromLongDouble(d,1);
+    addReplyBulk(c,o);
+    decrRefCount(o);
 }
 
 /* Add a long long as integer reply or bulk len / multi bulk count.
@@ -1222,10 +1232,10 @@ int processMultibulkBuffer(client *c) {
             {
                 c->argv[c->argc++] = createObject(OBJ_STRING,c->querybuf);
                 sdsIncrLen(c->querybuf,-2); /* remove CRLF */
-                c->querybuf = sdsempty();
                 /* Assume that if we saw a fat argument we'll see another one
                  * likely... */
-                c->querybuf = sdsMakeRoomFor(c->querybuf,c->bulklen+2);
+                c->querybuf = sdsnewlen(NULL,c->bulklen+2);
+                sdsclear(c->querybuf);
                 pos = 0;
             } else {
                 c->argv[c->argc++] =
@@ -1286,6 +1296,9 @@ void processInputBuffer(client *c) {
             /* Only reset the client when the command was executed. */
             if (processCommand(c) == C_OK)
                 resetClient(c);
+            /* freeMemoryIfNeeded may flush slave output buffers. This may result
+             * into a slave, that may be the active client, to be freed. */
+            if (server.current_client == NULL) break;
         }
     }
     server.current_client = NULL;
@@ -1458,9 +1471,8 @@ sds getAllClientsInfoString(void) {
     listNode *ln;
     listIter li;
     client *client;
-    sds o = sdsempty();
-
-    o = sdsMakeRoomFor(o,200*listLength(server.clients));
+    sds o = sdsnewlen(NULL,200*listLength(server.clients));
+    sdsclear(o);
     listRewind(server.clients,&li);
     while ((ln = listNext(&li)) != NULL) {
         client = listNodeValue(ln);
@@ -1621,7 +1633,7 @@ void clientCommand(client *c) {
         pauseClients(duration);
         addReply(c,shared.ok);
     } else {
-        addReplyError(c, "Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)");
+        addReplyError(c, "Syntax error, try CLIENT (LIST | KILL | GETNAME | SETNAME | PAUSE | REPLY)");
     }
 }
 
@@ -1900,7 +1912,7 @@ int clientsArePaused(void) {
  * and so forth.
  *
  * It calls the event loop in order to process a few events. Specifically we
- * try to call the event loop for times as long as we receive acknowledge that
+ * try to call the event loop 4 times as long as we receive acknowledge that
  * some event was processed, in order to go forward with the accept, read,
  * write, close sequence needed to serve a client.
  *

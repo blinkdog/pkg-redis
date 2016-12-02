@@ -1,30 +1,188 @@
-redis (2:3.2.0~rc3-1) experimental; urgency=medium
+redis (3:3.2.5-6) unstable; urgency=medium
 
-  * New upstream RC release.
-  * No need for pkill if we depend on procps.
-  * Failing tests should fail the build.
+  * Add missing Depends on lsb-base for /lib/lsb/init-functions usage in
+    redis-sentinel's initscript too. See #838966 for the parallel change to
+    redis-server's initscript.
 
- -- Chris Lamb <lamby@debian.org>  Fri, 29 Jan 2016 15:14:36 +0100
+ -- Chris Lamb <lamby@debian.org>  Thu, 01 Dec 2016 12:07:51 +0000
 
-redis (2:3.2~rc1-3) experimental; urgency=medium
+redis (3:3.2.5-5) unstable; urgency=medium
+
+  * Add RunTimeDirectory=redis to systemd .service files.
+    (Closes: #846350)
+
+ -- Chris Lamb <lamby@debian.org>  Thu, 01 Dec 2016 11:48:51 +0000
+
+redis (3:3.2.5-4) unstable; urgency=medium
+
+  * Install upstream's MANIFESTO and README.md.
+
+ -- Chris Lamb <lamby@debian.org>  Wed, 23 Nov 2016 15:45:48 +0000
+
+redis (3:3.2.5-3) unstable; urgency=medium
+
+  * Also run redis-benchmark in autopkgtests to stress-test the installation
+    better.
+
+ -- Chris Lamb <lamby@debian.org>  Sun, 13 Nov 2016 15:03:18 +0000
+
+redis (3:3.2.5-2) unstable; urgency=medium
+
+  * Tighten permissions of /var/{lib,log}/redis. (Closes: #842987)
+    - chmod(1) directories to 0750.
+    - Allow local administrator to override permissions with
+      dpkg-statoverride.
+    - Set UMask= in .service files, at least to match SystemV initscripts.
+
+ -- Chris Lamb <lamby@debian.org>  Thu, 03 Nov 2016 12:08:08 +0000
+
+redis (3:3.2.5-1) unstable; urgency=medium
+
+  * New upstream release.
+    - Refresh debian/patches/0003-use-system-jemalloc.patch to accomodate
+      missing -ldl flag.
+  * Refresh all patches with "pq import / pq export".
+
+ -- Chris Lamb <lamby@debian.org>  Wed, 26 Oct 2016 16:36:49 +0100
+
+redis (3:3.2.4-2) unstable; urgency=medium
+
+  * Ensure that sentinel's configuration actually writes to a pidfile location
+    so that systemd can detect that the daemon has started.
+
+ -- Chris Lamb <lamby@debian.org>  Mon, 10 Oct 2016 12:05:20 +0100
+
+redis (3:3.2.4-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Sync debian/sentinel.conf.
+  * Add missing -ldl for dladdr(3).
+  * Add missing Depends on lsb-base for /lib/lsb/init-functions usage in
+    initscript. Thanks to Santiago Vila. (Closes: #838966)
+
+ -- Chris Lamb <lamby@debian.org>  Tue, 27 Sep 2016 11:12:13 +0200
+
+redis (3:3.2.3-2) unstable; urgency=medium
+
+  * Call `ulimit -n 65536` by default from sysvinit scripts so behaviour is
+    consistent with systemd.
+  * Bump epoch as the "2" prefix makes it look like we are shipping version 2.x
+    of Redis itself.
+
+ -- Chris Lamb <lamby@debian.org>  Mon, 05 Sep 2016 11:23:18 +0100
+
+redis (2:3.2.3-1) unstable; urgency=medium
+
+  * New upstream release.
+    - Drop 0007-Avoid-world-readable-.rediscli_history-Closes-832460.patch as
+      was applied upstream.
+  * Add copyright-format 1.0 headers.
+    - Use "BSD-3-clause" over "BSD".
+    - Use separate ``License`` paragraphs.
+    - Ensure all wildcards in ``Files:`` sections match.
+  * Check we are running as root in LSB initscripts.
+  * Add debian/README.source regarding debian/{redis,sentinel}.conf.
+
+ -- Chris Lamb <lamby@debian.org>  Tue, 02 Aug 2016 13:40:01 -0400
+
+redis (2:3.2.2-1) unstable; urgency=medium
+
+  * New upstream release.
+    - Sync debian/redis.conf with upstream.
+    - Sync debian/sentinel.conf with upstream.
+
+ -- Chris Lamb <lamby@debian.org>  Fri, 29 Jul 2016 10:08:08 -0400
+
+redis (2:3.2.1-4) unstable; urgency=high
+
+  * Avoid race condition by setting and resetting umask(2) when
+    writing to ~/.rediscli_history. (Closes: #832460)
+  * Skip replication tests with timing issues.
+
+ -- Chris Lamb <lamby@debian.org>  Thu, 28 Jul 2016 08:35:50 -0400
+
+redis (2:3.2.1-3) unstable; urgency=medium
+
+  * Avoid world_readable ~/.rediscli_history files. Thanks to kpcyrd
+    <kpcyrd@rxv.cc>. (Closes: #832460)
+
+ -- Chris Lamb <lamby@debian.org>  Tue, 26 Jul 2016 23:48:07 -0400
+
+redis (2:3.2.1-2) unstable; urgency=medium
+
+  * Avoid race conditions in upstream test suite. Thanks to Daniel Schepler
+    <dschepler@gmail.com>. (Closes: #830500)
+
+ -- Chris Lamb <lamby@debian.org>  Wed, 13 Jul 2016 09:56:06 +0200
+
+redis (2:3.2.1-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Sync debian/redis.conf
+
+ -- Chris Lamb <lamby@debian.org>  Sat, 18 Jun 2016 20:13:44 +0100
+
+redis (2:3.2.0-3) unstable; urgency=medium
+
+  * Skip logging tests as not all architectures support it yet.
+  * Tidy patches.
+
+ -- Chris Lamb <lamby@debian.org>  Mon, 16 May 2016 10:28:51 +0100
+
+redis (2:3.2.0-2) unstable; urgency=medium
+
+  * Update redis.conf.
+
+ -- Chris Lamb <lamby@debian.org>  Sat, 07 May 2016 11:05:52 +0100
+
+redis (2:3.2.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Update 03-use-system-jemalloc.diff.
+  * Install redis-check-rdb (was: redis-check-dump).
+  * Bump Standards-Version to 3.9.8.
+
+ -- Chris Lamb <lamby@debian.org>  Fri, 06 May 2016 23:55:02 +0100
+
+redis (2:3.0.7-4) unstable; urgency=medium
+
+  * Actually specify a value for LimitNOFILE.
+
+ -- Chris Lamb <lamby@debian.org>  Thu, 07 Apr 2016 11:08:34 +0100
+
+redis (2:3.0.7-3) unstable; urgency=medium
+
+  * Update .travis.yml.
+  * Update redis-benchmark manpage. Thanks to Joe Doherty (docapotamus).
+  * Add LimitNOFILE to allow a higher number of open file descriptors
+    <https://github.com/lamby/pkg-redis/issues/8>. Thanks to @alexber220.
+
+ -- Chris Lamb <lamby@debian.org>  Wed, 06 Apr 2016 15:23:06 +0100
+
+redis (2:3.0.7-2) unstable; urgency=medium
+
+  * Correct SOURCE_DATE_EPOCH patch to invert conditional. Thanks to Reiner
+    Herrmann <reiner@reiner-h.de>.
+
+ -- Chris Lamb <lamby@debian.org>  Tue, 02 Feb 2016 10:53:26 +0100
+
+redis (2:3.0.7-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Actually drop unused 05-reproducible-build.diff file.
+  * Move to https Vcs-Git URI.
+
+ -- Chris Lamb <lamby@debian.org>  Fri, 29 Jan 2016 14:56:43 +0100
+
+redis (2:3.0.6-2) unstable; urgency=medium
 
   * Ensure that we always properly cleanup test processes (Closes: #808862)
+  * Add explicit Build-Depends on procps.
+    - Drop explicit pkill.
+  * Use SOURCE_DATE_EPOCH instead of dpkg-parsechangelog so patch can go
+    upstream.
 
- -- Chris Lamb <lamby@debian.org>  Wed, 23 Dec 2015 22:15:43 +0000
-
-redis (2:3.2~rc1-2) experimental; urgency=medium
-
-  * Sync debian/redis.conf and ./redis.conf
-
- -- Chris Lamb <lamby@debian.org>  Wed, 23 Dec 2015 17:21:52 +0000
-
-redis (2:3.2~rc1-1) experimental; urgency=medium
-
-  * New upstream RC release.
-    - Temporarily drop 03-use-system-jemalloc.diff.
-    - No longer shipping redis-check-dump.
-
- -- Chris Lamb <lamby@debian.org>  Wed, 23 Dec 2015 16:35:17 +0000
+ -- Chris Lamb <lamby@debian.org>  Wed, 06 Jan 2016 11:38:14 +0000
 
 redis (2:3.0.6-1) unstable; urgency=medium
 
