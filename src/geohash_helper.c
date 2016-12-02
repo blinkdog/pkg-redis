@@ -34,7 +34,9 @@
  * https://github.com/yinqiwen/ardb/blob/d42503/src/geo/geohash_helper.cpp
  */
 
+#include "fmacros.h"
 #include "geohash_helper.h"
+#include "debugmacro.h"
 #include <math.h>
 
 #define D_R (M_PI / 180.0)
@@ -78,11 +80,6 @@ uint8_t geohashEstimateStepsByRadius(double range_meters, double lat) {
     if (step < 1) step = 1;
     if (step > 26) step = 26;
     return step;
-}
-
-int geohashBitsComparator(const GeoHashBits *a, const GeoHashBits *b) {
-    /* If step not equal, compare on step.  Else, compare on bits. */
-    return a->step != b->step ? a->step - b->step : a->bits - b->bits;
 }
 
 int geohashBoundingBox(double longitude, double latitude, double radius_meters,
@@ -166,6 +163,28 @@ GeoHashRadius geohashGetAreasByRadius(double longitude, double latitude, double 
         geohashEncode(&long_range,&lat_range,longitude,latitude,steps,&hash);
         geohashNeighbors(&hash,&neighbors);
         geohashDecode(long_range,lat_range,hash,&area);
+    }
+
+    /* Example debug info. This turns to be very useful every time there is
+     * to investigate radius search potential bugs. So better to leave it
+     * here. */
+    if (0) {
+        GeoHashArea myarea = {{0}};
+        geohashDecode(long_range, lat_range, neighbors.west, &myarea);
+
+        /* Dump West. */
+        D("Neighbors");
+        D("area.longitude.min: %f\n", myarea.longitude.min);
+        D("area.longitude.max: %f\n", myarea.longitude.max);
+        D("area.latitude.min: %f\n", myarea.latitude.min);
+        D("area.latitude.max: %f\n", myarea.latitude.max);
+
+        /* Dump center square. */
+        D("Area");
+        D("area.longitude.min: %f\n", area.longitude.min);
+        D("area.longitude.max: %f\n", area.longitude.max);
+        D("area.latitude.min: %f\n", area.latitude.min);
+        D("area.latitude.max: %f\n", area.latitude.max);
     }
 
     /* Exclude the search areas that are useless. */

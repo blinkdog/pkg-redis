@@ -113,7 +113,7 @@ int extractLongLatOrReply(client *c, robj **argv, double *xy) {
 int longLatFromMember(robj *zobj, robj *member, double *xy) {
     double score = 0;
 
-    if (zsetScore(zobj, member, &score) == C_ERR) return C_ERR;
+    if (zsetScore(zobj, member->ptr, &score) == C_ERR) return C_ERR;
     if (!decodeGeohash(score, xy)) return C_ERR;
     return C_OK;
 }
@@ -269,16 +269,14 @@ int geoGetPointsInRange(robj *zobj, double min, double max, double lon, double l
         }
 
         while (ln) {
-            robj *o = ln->obj;
+            sds ele = ln->ele;
             /* Abort when the node is no longer in range. */
             if (!zslValueLteMax(ln->score, &range))
                 break;
 
-            member = (o->encoding == OBJ_ENCODING_INT) ?
-                        sdsfromlonglong((long)o->ptr) :
-                        sdsdup(o->ptr);
-            if (geoAppendIfWithinRadius(ga,lon,lat,radius,ln->score,member)
-                == C_ERR) sdsfree(member);
+            ele = sdsdup(ele);
+            if (geoAppendIfWithinRadius(ga,lon,lat,radius,ln->score,ele)
+                == C_ERR) sdsfree(ele);
             ln = ln->level[0].forward;
         }
     }
@@ -620,13 +618,10 @@ void georadiusGeneric(client *c, int type) {
             gp->dist /= conversion; /* Fix according to unit. */
             double score = storedist ? gp->dist : gp->score;
             size_t elelen = sdslen(gp->member);
-            robj *ele = createObject(OBJ_STRING,gp->member);
 
             if (maxelelen < elelen) maxelelen = elelen;
-            incrRefCount(ele); /* Set refcount to 2 since we reference the
-                                  object both in the skiplist and dict. */
-            znode = zslInsert(zs->zsl,score,ele);
-            serverAssert(dictAdd(zs->dict,ele,&znode->score) == DICT_OK);
+            znode = zslInsert(zs->zsl,score,gp->member);
+            serverAssert(dictAdd(zs->dict,gp->member,&znode->score) == DICT_OK);
             gp->member = NULL;
         }
 
@@ -675,7 +670,7 @@ void geohashCommand(client *c) {
     addReplyMultiBulkLen(c,c->argc-2);
     for (j = 2; j < c->argc; j++) {
         double score;
-        if (zsetScore(zobj, c->argv[j], &score) == C_ERR) {
+        if (zsetScore(zobj, c->argv[j]->ptr, &score) == C_ERR) {
             addReply(c,shared.nullbulk);
         } else {
             /* The internal format we use for geocoding is a bit different
@@ -729,7 +724,7 @@ void geoposCommand(client *c) {
     addReplyMultiBulkLen(c,c->argc-2);
     for (j = 2; j < c->argc; j++) {
         double score;
-        if (zsetScore(zobj, c->argv[j], &score) == C_ERR) {
+        if (zsetScore(zobj, c->argv[j]->ptr, &score) == C_ERR) {
             addReply(c,shared.nullmultibulk);
         } else {
             /* Decode... */
@@ -769,8 +764,8 @@ void geodistCommand(client *c) {
 
     /* Get the scores. We need both otherwise NULL is returned. */
     double score1, score2, xyxy[4];
-    if (zsetScore(zobj, c->argv[2], &score1) == C_ERR ||
-        zsetScore(zobj, c->argv[3], &score2) == C_ERR)
+    if (zsetScore(zobj, c->argv[2]->ptr, &score1) == C_ERR ||
+        zsetScore(zobj, c->argv[3]->ptr, &score2) == C_ERR)
     {
         addReply(c,shared.nullbulk);
         return;

@@ -566,9 +566,9 @@ int luaRedisGenericCommand(lua_State *lua, int raise_error) {
         reply = sdsnewlen(c->buf,c->bufpos);
         c->bufpos = 0;
         while(listLength(c->reply)) {
-            robj *o = listNodeValue(listFirst(c->reply));
+            sds o = listNodeValue(listFirst(c->reply));
 
-            reply = sdscatlen(reply,o->ptr,sdslen(o->ptr));
+            reply = sdscatsds(reply,o);
             listDelNode(c->reply,listFirst(c->reply));
         }
     }
@@ -869,7 +869,7 @@ void scriptingEnableGlobalsProtection(lua_State *lua) {
     s[j++]="end\n";
     s[j++]="mt.__index = function (t, n)\n";
     s[j++]="  if dbg.getinfo(2) and dbg.getinfo(2, \"S\").what ~= \"C\" then\n";
-    s[j++]="    error(\"Script attempted to access unexisting global variable '\"..tostring(n)..\"'\", 2)\n";
+    s[j++]="    error(\"Script attempted to access nonexistent global variable '\"..tostring(n)..\"'\", 2)\n";
     s[j++]="  end\n";
     s[j++]="  return rawget(t, n)\n";
     s[j++]="end\n";
