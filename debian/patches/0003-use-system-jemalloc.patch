@@ -51,3 +51,15 @@ Subject: use-system-jemalloc
  #else
  #error "Newer version of jemalloc required"
  #endif
+--- pkg-redis.orig/src/object.c
++++ pkg-redis/src/object.c
+@@ -36,6 +36,9 @@
+ #define strtold(a,b) ((long double)strtod((a),(b)))
+ #endif
+ 
++#define je_mallctl mallctl
++#define je_malloc_stats_print malloc_stats_print
++
+ /* ===================== Creation and parsing of objects ==================== */
+ 
+ robj *createObject(int type, void *ptr) {
