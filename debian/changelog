@@ -1,3 +1,9 @@
+redis (4:4.0-1) UNRELEASED; urgency=medium
+
+  * New upstream RC release.
+
+ -- Chris Lamb <lamby@debian.org>  Fri, 02 Dec 2016 19:45:38 +0000
+
 redis (3:3.2.5-6) unstable; urgency=medium
 
   * Add missing Depends on lsb-base for /lib/lsb/init-functions usage in
