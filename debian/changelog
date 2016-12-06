@@ -1,3 +1,9 @@
+redis (4:4.0-2) UNRELEASED; urgency=medium
+
+  * Update debian/watch to match RC4 betas.
+
+ -- Chris Lamb <lamby@debian.org>  Tue, 06 Dec 2016 09:34:17 +0000
+
 redis (4:4.0-1) experimental; urgency=medium
 
   * New upstream RC release.
