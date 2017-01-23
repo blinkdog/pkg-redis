@@ -1,9 +1,9 @@
-redis (4:4.0-rc2-4) UNRELEASED; urgency=medium
+redis (4:4.0-rc2-4) experimental; urgency=medium
 
   * Use --cpu-list 0 (not --cpu-list 1) to avoid FTBFS on single-CPU machines.
     (Closes: #852347)
 
- -- Chris Lamb <lamby@debian.org>  Tue, 24 Jan 2017 12:07:07 +1300
+ -- Chris Lamb <lamby@debian.org>  Tue, 24 Jan 2017 12:07:32 +1300
 
 redis (4:4.0-rc2-3) experimental; urgency=medium
 
