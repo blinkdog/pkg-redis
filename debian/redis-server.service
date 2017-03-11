@@ -11,7 +11,8 @@ TimeoutStopSec=0
 Restart=always
 User=redis
 Group=redis
-RunTimeDirectory=redis
+RuntimeDirectory=redis
+RuntimeDirectoryMode=2755
 
 ExecStartPre=-/bin/run-parts --verbose /etc/redis/redis-server.pre-up.d
 ExecStartPost=-/bin/run-parts --verbose /etc/redis/redis-server.post-up.d
@@ -30,8 +31,9 @@ ReadWriteDirectories=-/var/log/redis
 ReadWriteDirectories=-/var/run/redis
 CapabilityBoundingSet=~CAP_SYS_PTRACE
 
-# redis-server writes its own config file when in cluster mode so we allow
-# writing there (NB. ProtectSystem=true over ProtectSystem=full)
+# redis-server can write to its own config file when in cluster mode so we
+# permit writing there by default. If you are not using this feature, it is
+# recommended that you replace the following lines with "ProtectSystem=full".
 ProtectSystem=true
 ReadWriteDirectories=-/etc/redis
 

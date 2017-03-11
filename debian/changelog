@@ -1,3 +1,74 @@
+redis (3:3.2.8-2) unstable; urgency=medium
+
+  * Avoid conflict between RuntimeDirectory and tmpfiles.d(5) both attempting
+    to create /run/redis with differing permissions.
+
+    This prevents an installation error on Jessie where /run/redis was first
+    being created by the tmpfiles.d(5) mechanism and then subsequently via the
+    RuntimeDirectory directive. Due to a bug in Jessie's systemd, this caused a
+    package installation error as systemd was too strict about permissions if
+    the target already exists: <https://github.com/systemd/systemd/pull/896>
+
+    The redis-{server,sentinel} daemon would actually start successfully a few
+    milliseconds later due to the Restart=always directive.
+
+    We work around this this by dropping the tmpfiles.d(5) handling and moving
+    entirely to RuntimeDirectory{,Mode}; we are not using any special handling
+    requiring tmpfiles.d(5) and we appear to need RuntimeDirectory anyway for
+    #846350. (Closes: #856116)
+
+ -- Chris Lamb <lamby@debian.org>  Sat, 11 Mar 2017 12:53:14 +0000
+
+redis (3:3.2.8-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Chris Lamb <lamby@debian.org>  Mon, 13 Feb 2017 10:15:53 +1300
+
+redis (3:3.2.7-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Chris Lamb <lamby@debian.org>  Wed, 01 Feb 2017 09:27:05 +1300
+
+redis (3:3.2.6-6) unstable; urgency=medium
+
+  * Use --cpu-list 0 (not --cpu-list 1) to ensure compilation on single-CPU
+    machines. (Closes: #852347)
+
+ -- Chris Lamb <lamby@debian.org>  Tue, 24 Jan 2017 11:59:02 +1300
+
+redis (3:3.2.6-5) unstable; urgency=medium
+
+  * Re-add taskset calls to try and avoid FTBFS due to parallelism in upstream
+    test suite.
+
+ -- Chris Lamb <lamby@debian.org>  Mon, 23 Jan 2017 13:24:39 +1300
+
+redis (3:3.2.6-4) unstable; urgency=medium
+
+  * Expand the documentation in redis-server.service and redis-sentinel
+    regarding the default hardening options.
+
+ -- Chris Lamb <lamby@debian.org>  Sat, 21 Jan 2017 11:21:33 +1100
+
+redis (3:3.2.6-3) unstable; urgency=medium
+
+  * Don't ship a "duplicate" redis-server binary in redis-tools as
+    /usr/bin/redis-check-rdb (it checks argv to change its behaviour) by
+    replacing it with a symlink. Found by <https://dedup.debian.net/>.
+
+ -- Chris Lamb <lamby@debian.org>  Wed, 11 Jan 2017 17:04:33 +0000
+
+redis (3:3.2.6-2) unstable; urgency=medium
+
+  * Rename RunTimeDirectory -> RuntimeDirectory in .service files.
+    (Closes: #850534)
+  * Refresh all patches with pq import -> pq export.
+  * Tidy all patches, updating descriptions and use Pq-Topic to organise.
+
+ -- Chris Lamb <lamby@debian.org>  Sat, 07 Jan 2017 18:06:14 +0000
+
 redis (3:3.2.6-1~bpo8+1) jessie-backports; urgency=medium
 
   * Rebuild for jessie-backports.
