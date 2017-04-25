@@ -122,7 +122,7 @@ void freeReplicationBacklog(void) {
 /* Add data to the replication backlog.
  * This function also increments the global replication offset stored at
  * server.master_repl_offset, because there is no case where we want to feed
- * the backlog without incrementing the buffer. */
+ * the backlog without incrementing the offset. */
 void feedReplicationBacklog(void *ptr, size_t len) {
     unsigned char *p = ptr;
 
@@ -1078,6 +1078,7 @@ void replicationCreateMasterClient(int fd, int dbid) {
     server.master->flags |= CLIENT_MASTER;
     server.master->authenticated = 1;
     server.master->reploff = server.master_initial_offset;
+    server.master->read_reploff = server.master->reploff;
     memcpy(server.master->replid, server.master_replid,
         sizeof(server.master_replid));
     /* If master offset is set to -1, this master is old and is not
@@ -1085,6 +1086,18 @@ void replicationCreateMasterClient(int fd, int dbid) {
     if (server.master->reploff == -1)
         server.master->flags |= CLIENT_PRE_PSYNC;
     if (dbid != -1) selectDb(server.master,dbid);
+}
+
+void restartAOF() {
+    int retry = 10;
+    while (retry-- && startAppendOnly() == C_ERR) {
+        serverLog(LL_WARNING,"Failed enabling the AOF after successful master synchronization! Trying it again in one second.");
+        sleep(1);
+    }
+    if (!retry) {
+        serverLog(LL_WARNING,"FATAL: this slave instance finished the synchronization with its master, but the AOF can't be turned on. Exiting now.");
+        exit(1);
+    }
 }
 
 /* Asynchronously read the SYNC payload we receive from a master */
@@ -1228,12 +1241,17 @@ void readSyncBulkPayload(aeEventLoop *el, int fd, void *privdata, int mask) {
     }
 
     if (eof_reached) {
+        int aof_is_enabled = server.aof_state != AOF_OFF;
+
         if (rename(server.repl_transfer_tmpfile,server.rdb_filename) == -1) {
             serverLog(LL_WARNING,"Failed trying to rename the temp DB into dump.rdb in MASTER <-> SLAVE synchronization: %s", strerror(errno));
             cancelReplicationHandshake();
             return;
         }
         serverLog(LL_NOTICE, "MASTER <-> SLAVE sync: Flushing old data");
+        /* We need to stop any AOFRW fork before flusing and parsing
+         * RDB, otherwise we'll create a copy-on-write disaster. */
+        if(aof_is_enabled) stopAppendOnly();
         signalFlushedDb(-1);
         emptyDb(
             -1,
@@ -1249,6 +1267,9 @@ void readSyncBulkPayload(aeEventLoop *el, int fd, void *privdata, int mask) {
         if (rdbLoad(server.rdb_filename,&rsi) != C_OK) {
             serverLog(LL_WARNING,"Failed trying to load the MASTER synchronization DB from disk");
             cancelReplicationHandshake();
+            /* Re-enable the AOF if we disabled it earlier, in order to restore
+             * the original configuration. */
+            if (aof_is_enabled) restartAOF();
             return;
         }
         /* Final setup of the connected slave <- master link */
@@ -1272,21 +1293,8 @@ void readSyncBulkPayload(aeEventLoop *el, int fd, void *privdata, int mask) {
         /* Restart the AOF subsystem now that we finished the sync. This
          * will trigger an AOF rewrite, and when done will start appending
          * to the new file. */
-        if (server.aof_state != AOF_OFF) {
-            int retry = 10;
-
-            stopAppendOnly();
-            while (retry-- && startAppendOnly() == C_ERR) {
-                serverLog(LL_WARNING,"Failed enabling the AOF after successful master synchronization! Trying it again in one second.");
-                sleep(1);
-            }
-            if (!retry) {
-                serverLog(LL_WARNING,"FATAL: this slave instance finished the synchronization with its master, but the AOF can't be turned on. Exiting now.");
-                exit(1);
-            }
-        }
+        if (aof_is_enabled) restartAOF();
     }
-
     return;
 
 error:
@@ -1561,7 +1569,7 @@ int slaveTryPartialResynchronization(int fd, int read_reply) {
  * establish a connection with the master. */
 void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
     char tmpfile[256], *err = NULL;
-    int dfd, maxtries = 5;
+    int dfd = -1, maxtries = 5;
     int sockerr = 0, psync_result;
     socklen_t errlen = sizeof(sockerr);
     UNUSED(el);
@@ -1825,6 +1833,7 @@ void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
 
 error:
     aeDeleteFileEvent(server.el,fd,AE_READABLE|AE_WRITABLE);
+    if (dfd != -1) close(dfd);
     close(fd);
     server.repl_transfer_s = -1;
     server.repl_state = REPL_STATE_CONNECT;
@@ -2109,6 +2118,14 @@ void replicationCacheMaster(client *c) {
 
     /* Unlink the client from the server structures. */
     unlinkClient(c);
+
+    /* Fix the master specific fields: we want to discard to non processed
+     * query buffers and non processed offsets, including pending
+     * transactions. */
+    sdsclear(server.master->querybuf);
+    sdsclear(server.master->pending_querybuf);
+    server.master->read_reploff = server.master->reploff;
+    if (c->flags & CLIENT_MULTI) discardTransaction(c);
 
     /* Save the master. Server.master will be set to null later by
      * replicationHandleMasterDisconnection(). */
