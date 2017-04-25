@@ -482,16 +482,16 @@ int dictObjKeyCompare(void *privdata, const void *key1,
     return dictSdsKeyCompare(privdata,o1->ptr,o2->ptr);
 }
 
-unsigned int dictObjHash(const void *key) {
+uint64_t dictObjHash(const void *key) {
     const robj *o = key;
     return dictGenHashFunction(o->ptr, sdslen((sds)o->ptr));
 }
 
-unsigned int dictSdsHash(const void *key) {
+uint64_t dictSdsHash(const void *key) {
     return dictGenHashFunction((unsigned char*)key, sdslen((char*)key));
 }
 
-unsigned int dictSdsCaseHash(const void *key) {
+uint64_t dictSdsCaseHash(const void *key) {
     return dictGenCaseHashFunction((unsigned char*)key, sdslen((char*)key));
 }
 
@@ -513,7 +513,7 @@ int dictEncObjKeyCompare(void *privdata, const void *key1,
     return cmp;
 }
 
-unsigned int dictEncObjHash(const void *key) {
+uint64_t dictEncObjHash(const void *key) {
     robj *o = (robj*) key;
 
     if (sdsEncodedObject(o)) {
@@ -526,7 +526,7 @@ unsigned int dictEncObjHash(const void *key) {
             len = ll2string(buf,32,(long)o->ptr);
             return dictGenHashFunction((unsigned char*)buf, len);
         } else {
-            unsigned int hash;
+            uint64_t hash;
 
             o = getDecodedObject(o);
             hash = dictGenHashFunction(o->ptr, sdslen((sds)o->ptr));
@@ -870,8 +870,15 @@ void clientsCron(void) {
 void databasesCron(void) {
     /* Expire keys by random sampling. Not required for slaves
      * as master will synthesize DELs for us. */
-    if (server.active_expire_enabled && server.masterhost == NULL)
+    if (server.active_expire_enabled && server.masterhost == NULL) {
         activeExpireCycle(ACTIVE_EXPIRE_CYCLE_SLOW);
+    } else if (server.masterhost != NULL) {
+        expireSlaveKeys();
+    }
+
+    /* Defrag keys gradually. */
+    if (server.active_defrag_enabled)
+        activeDefragCycle();
 
     /* Perform hash tables rehashing if needed, but only if there are no
      * other processes saving the DB on disk. Otherwise rehashing is bad
@@ -1329,6 +1336,12 @@ void initServerConfig(void) {
     server.maxidletime = CONFIG_DEFAULT_CLIENT_TIMEOUT;
     server.tcpkeepalive = CONFIG_DEFAULT_TCP_KEEPALIVE;
     server.active_expire_enabled = 1;
+    server.active_defrag_enabled = CONFIG_DEFAULT_ACTIVE_DEFRAG;
+    server.active_defrag_ignore_bytes = CONFIG_DEFAULT_DEFRAG_IGNORE_BYTES;
+    server.active_defrag_threshold_lower = CONFIG_DEFAULT_DEFRAG_THRESHOLD_LOWER;
+    server.active_defrag_threshold_upper = CONFIG_DEFAULT_DEFRAG_THRESHOLD_UPPER;
+    server.active_defrag_cycle_min = CONFIG_DEFAULT_DEFRAG_CYCLE_MIN;
+    server.active_defrag_cycle_max = CONFIG_DEFAULT_DEFRAG_CYCLE_MAX;
     server.client_max_querybuf_len = PROTO_MAX_QUERYBUF_LEN;
     server.saveparams = NULL;
     server.loading = 0;
@@ -1365,6 +1378,7 @@ void initServerConfig(void) {
     server.rdb_checksum = CONFIG_DEFAULT_RDB_CHECKSUM;
     server.stop_writes_on_bgsave_err = CONFIG_DEFAULT_STOP_WRITES_ON_BGSAVE_ERROR;
     server.activerehashing = CONFIG_DEFAULT_ACTIVE_REHASHING;
+    server.active_defrag_running = 0;
     server.notify_keyspace_events = 0;
     server.maxclients = CONFIG_DEFAULT_MAX_CLIENTS;
     server.bpop_blocked_clients = 0;
@@ -1397,6 +1411,8 @@ void initServerConfig(void) {
     server.lazyfree_lazy_eviction = CONFIG_DEFAULT_LAZYFREE_LAZY_EVICTION;
     server.lazyfree_lazy_expire = CONFIG_DEFAULT_LAZYFREE_LAZY_EXPIRE;
     server.lazyfree_lazy_server_del = CONFIG_DEFAULT_LAZYFREE_LAZY_SERVER_DEL;
+    server.always_show_logo = CONFIG_DEFAULT_ALWAYS_SHOW_LOGO;
+    server.lua_time_limit = LUA_SCRIPT_TIME_LIMIT;
 
     server.lruclock = getLRUClock();
     resetServerSaveParams();
@@ -1572,9 +1588,12 @@ void adjustOpenFilesLimit(void) {
             if (bestlimit < oldlimit) bestlimit = oldlimit;
 
             if (bestlimit < maxfiles) {
-                int old_maxclients = server.maxclients;
+                unsigned int old_maxclients = server.maxclients;
                 server.maxclients = bestlimit-CONFIG_MIN_RESERVED_FDS;
-                if (server.maxclients < 1) {
+                /* maxclients is unsigned so may overflow: in order
+                 * to check if maxclients is now logically less than 1
+                 * we test indirectly via bestlimit. */
+                if (bestlimit <= CONFIG_MIN_RESERVED_FDS) {
                     serverLog(LL_WARNING,"Your current 'ulimit -n' "
                         "of %llu is not enough for the server to start. "
                         "Please increase your open file limit to at least "
@@ -1711,6 +1730,10 @@ void resetServerStats(void) {
     server.stat_evictedkeys = 0;
     server.stat_keyspace_misses = 0;
     server.stat_keyspace_hits = 0;
+    server.stat_active_defrag_hits = 0;
+    server.stat_active_defrag_misses = 0;
+    server.stat_active_defrag_key_hits = 0;
+    server.stat_active_defrag_key_misses = 0;
     server.stat_fork_time = 0;
     server.stat_fork_rate = 0;
     server.stat_rejected_conn = 0;
@@ -1847,6 +1870,16 @@ void initServer(void) {
     }
     if (server.sofd > 0 && aeCreateFileEvent(server.el,server.sofd,AE_READABLE,
         acceptUnixHandler,NULL) == AE_ERR) serverPanic("Unrecoverable error creating server.sofd file event.");
+
+
+    /* Register a readable event for the pipe used to awake the event loop
+     * when a blocked client in a module needs attention. */
+    if (aeCreateFileEvent(server.el, server.module_blocked_pipe[0], AE_READABLE,
+        moduleBlockedClientPipeReadable,NULL) == AE_ERR) {
+            serverPanic(
+                "Error registering the readable event for the module "
+                "blocked clients subsystem.");
+    }
 
     /* Open the AOF file if needed. */
     if (server.aof_state == AOF_ON) {
@@ -2866,6 +2899,7 @@ sds genRedisInfoString(char *section) {
             "maxmemory_policy:%s\r\n"
             "mem_fragmentation_ratio:%.2f\r\n"
             "mem_allocator:%s\r\n"
+            "active_defrag_running:%d\r\n"
             "lazyfree_pending_objects:%zu\r\n",
             zmalloc_used,
             hmem,
@@ -2887,6 +2921,7 @@ sds genRedisInfoString(char *section) {
             evict_policy,
             mh->fragmentation,
             ZMALLOC_LIB,
+            server.active_defrag_running,
             lazyfreeGetPendingObjectsCount()
         );
         freeMemoryOverheadData(mh);
@@ -3005,7 +3040,12 @@ sds genRedisInfoString(char *section) {
             "pubsub_channels:%ld\r\n"
             "pubsub_patterns:%lu\r\n"
             "latest_fork_usec:%lld\r\n"
-            "migrate_cached_sockets:%ld\r\n",
+            "migrate_cached_sockets:%ld\r\n"
+            "slave_expires_tracked_keys:%zu\r\n"
+            "active_defrag_hits:%lld\r\n"
+            "active_defrag_misses:%lld\r\n"
+            "active_defrag_key_hits:%lld\r\n"
+            "active_defrag_key_misses:%lld\r\n",
             server.stat_numconnections,
             server.stat_numcommands,
             getInstantaneousMetric(STATS_METRIC_COMMAND),
@@ -3024,7 +3064,12 @@ sds genRedisInfoString(char *section) {
             dictSize(server.pubsub_channels),
             listLength(server.pubsub_patterns),
             server.stat_fork_time,
-            dictSize(server.migrate_cached_sockets));
+            dictSize(server.migrate_cached_sockets),
+            getSlaveKeyWithExpireCount(),
+            server.stat_active_defrag_hits,
+            server.stat_active_defrag_misses,
+            server.stat_active_defrag_key_hits,
+            server.stat_active_defrag_key_misses);
     }
 
     /* Replication */
@@ -3327,15 +3372,18 @@ void redisAsciiArt(void) {
     else if (server.sentinel_mode) mode = "sentinel";
     else mode = "standalone";
 
-    if (server.syslog_enabled) {
+    /* Show the ASCII logo if: log file is stdout AND stdout is a
+     * tty AND syslog logging is disabled. Also show logo if the user
+     * forced us to do so via redis.conf. */
+    int show_logo = ((!server.syslog_enabled &&
+                      server.logfile[0] == '\0' &&
+                      isatty(fileno(stdout))) ||
+                     server.always_show_logo);
+
+    if (!show_logo) {
         serverLog(LL_NOTICE,
-            "Redis %s (%s/%d) %s bit, %s mode, port %d, pid %ld ready to start.",
-            REDIS_VERSION,
-            redisGitSHA1(),
-            strtol(redisGitDirty(),NULL,10) > 0,
-            (sizeof(long) == 8) ? "64" : "32",
-            mode, server.port,
-            (long) getpid()
+            "Running mode=%s, port=%d.",
+            mode, server.port
         );
     } else {
         snprintf(buf,1024*16,ascii_logo,
@@ -3602,7 +3650,9 @@ int main(int argc, char **argv) {
     zmalloc_set_oom_handler(redisOutOfMemoryHandler);
     srand(time(NULL)^getpid());
     gettimeofday(&tv,NULL);
-    dictSetHashFunctionSeed(tv.tv_sec^tv.tv_usec^getpid());
+    char hashseed[16];
+    getRandomHexChars(hashseed,sizeof(hashseed));
+    dictSetHashFunctionSeed((uint8_t*)hashseed);
     server.sentinel_mode = checkForSentinelMode(argc,argv);
     initServerConfig();
     moduleInitModulesSystem();
@@ -3692,8 +3742,21 @@ int main(int argc, char **argv) {
         resetServerSaveParams();
         loadServerConfig(configfile,options);
         sdsfree(options);
-    } else {
+    }
+
+    serverLog(LL_WARNING, "oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo");
+    serverLog(LL_WARNING,
+        "Redis version=%s, bits=%d, commit=%s, modified=%d, pid=%d, just started",
+            REDIS_VERSION,
+            (sizeof(long) == 8) ? 64 : 32,
+            redisGitSHA1(),
+            strtol(redisGitDirty(),NULL,10) > 0,
+            (int)getpid());
+
+    if (argc == 1) {
         serverLog(LL_WARNING, "Warning: no config file specified, using the default config. In order to specify a config file use %s /path/to/%s.conf", argv[0], server.sentinel_mode ? "sentinel" : "redis");
+    } else {
+        serverLog(LL_WARNING, "Configuration loaded");
     }
 
     server.supervised = redisIsSupervised(server.supervised_mode);
@@ -3708,7 +3771,7 @@ int main(int argc, char **argv) {
 
     if (!server.sentinel_mode) {
         /* Things not needed when running in Sentinel mode. */
-        serverLog(LL_WARNING,"Server started, Redis version " REDIS_VERSION);
+        serverLog(LL_WARNING,"Server initialized");
     #ifdef __linux__
         linuxMemoryWarnings();
     #endif
@@ -3723,7 +3786,7 @@ int main(int argc, char **argv) {
             }
         }
         if (server.ipfd_count > 0)
-            serverLog(LL_NOTICE,"The server is now ready to accept connections on port %d", server.port);
+            serverLog(LL_NOTICE,"Ready to accept connections");
         if (server.sofd > 0)
             serverLog(LL_NOTICE,"The server is now ready to accept connections at %s", server.unixsocket);
     } else {

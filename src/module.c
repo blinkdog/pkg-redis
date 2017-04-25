@@ -1342,7 +1342,7 @@ int RM_SetExpire(RedisModuleKey *key, mstime_t expire) {
         return REDISMODULE_ERR;
     if (expire != REDISMODULE_NO_EXPIRE) {
         expire += mstime();
-        setExpire(key->db,key->key,expire);
+        setExpire(key->ctx->client,key->db,key->key,expire);
     } else {
         removeExpire(key->db,key->key);
     }
@@ -1858,12 +1858,12 @@ int RM_ZsetRangeNext(RedisModuleKey *key) {
         } else {
             /* Are we still within the range? */
             if (key->ztype == REDISMODULE_ZSET_RANGE_SCORE &&
-                !zslValueLteMax(ln->score,&key->zrs))
+                !zslValueLteMax(next->score,&key->zrs))
             {
                 key->zer = 1;
                 return 0;
             } else if (key->ztype == REDISMODULE_ZSET_RANGE_LEX) {
-                if (!zslLexValueLteMax(ln->ele,&key->zlrs)) {
+                if (!zslLexValueLteMax(next->ele,&key->zlrs)) {
                     key->zer = 1;
                     return 0;
                 }
@@ -1921,7 +1921,7 @@ int RM_ZsetRangePrev(RedisModuleKey *key) {
         } else {
             /* Are we still within the range? */
             if (key->ztype == REDISMODULE_ZSET_RANGE_SCORE &&
-                !zslValueGteMin(ln->score,&key->zrs))
+                !zslValueGteMin(prev->score,&key->zrs))
             {
                 key->zer = 1;
                 return 0;
@@ -2743,8 +2743,8 @@ moduleType *RM_CreateDataType(RedisModuleCtx *ctx, const char *name, int encver,
         moduleTypeLoadFunc rdb_load;
         moduleTypeSaveFunc rdb_save;
         moduleTypeRewriteFunc aof_rewrite;
-        moduleTypeDigestFunc digest;
         moduleTypeMemUsageFunc mem_usage;
+        moduleTypeDigestFunc digest;
         moduleTypeFreeFunc free;
     } *tms = (struct typemethods*) typemethods_ptr;
 
@@ -3108,6 +3108,17 @@ void RM_LogIOError(RedisModuleIO *io, const char *levelstr, const char *fmt, ...
  * Blocking clients from modules
  * -------------------------------------------------------------------------- */
 
+/* Readable handler for the awake pipe. We do nothing here, the awake bytes
+ * will be actually read in a more appropriate place in the
+ * moduleHandleBlockedClients() function that is where clients are actually
+ * served. */
+void moduleBlockedClientPipeReadable(aeEventLoop *el, int fd, void *privdata, int mask) {
+    UNUSED(el);
+    UNUSED(fd);
+    UNUSED(mask);
+    UNUSED(privdata);
+}
+
 /* This is called from blocked.c in order to unblock a client: may be called
  * for multiple reasons while the client is in the middle of being blocked
  * because the client is terminated, but is also called for cleanup when a
@@ -3171,6 +3182,9 @@ int RM_UnblockClient(RedisModuleBlockedClient *bc, void *privdata) {
     pthread_mutex_lock(&moduleUnblockedClientsMutex);
     bc->privdata = privdata;
     listAddNodeTail(moduleUnblockedClients,bc);
+    if (write(server.module_blocked_pipe[1],"A",1) != 1) {
+        /* Ignore the error, this is best-effort. */
+    }
     pthread_mutex_unlock(&moduleUnblockedClientsMutex);
     return REDISMODULE_OK;
 }
@@ -3195,6 +3209,10 @@ void moduleHandleBlockedClients(void) {
     RedisModuleBlockedClient *bc;
 
     pthread_mutex_lock(&moduleUnblockedClientsMutex);
+    /* Here we unblock all the pending clients blocked in modules operations
+     * so we can read every pending "awake byte" in the pipe. */
+    char buf[1];
+    while (read(server.module_blocked_pipe[0],buf,1) == 1);
     while (listLength(moduleUnblockedClients)) {
         ln = listFirst(moduleUnblockedClients);
         bc = ln->value;
@@ -3217,8 +3235,11 @@ void moduleHandleBlockedClients(void) {
         }
         if (bc->privdata && bc->free_privdata)
             bc->free_privdata(bc->privdata);
-        zfree(bc);
         if (c != NULL) unblockClient(c);
+        /* Free 'bc' only after unblocking the client, since it is
+         * referenced in the client blocking context, and must be valid
+         * when calling unblockClient(). */
+        zfree(bc);
 
         /* Lock again before to iterate the loop. */
         pthread_mutex_lock(&moduleUnblockedClientsMutex);
@@ -3264,7 +3285,7 @@ void *RM_GetBlockedClientPrivateData(RedisModuleCtx *ctx) {
 /* server.moduleapi dictionary type. Only uses plain C strings since
  * this gets queries from modules. */
 
-unsigned int dictCStringKeyHash(const void *key) {
+uint64_t dictCStringKeyHash(const void *key) {
     return dictGenHashFunction((unsigned char*)key, strlen((char*)key));
 }
 
@@ -3298,6 +3319,16 @@ void moduleInitModulesSystem(void) {
     server.loadmodule_queue = listCreate();
     modules = dictCreate(&modulesDictType,NULL);
     moduleRegisterCoreAPI();
+    if (pipe(server.module_blocked_pipe) == -1) {
+        serverLog(LL_WARNING,
+            "Can't create the pipe for module blocking commands: %s",
+            strerror(errno));
+        exit(1);
+    }
+    /* Make the pipe non blocking. This is just a best effort aware mechanism
+     * and we do not want to block not in the read nor in the write half. */
+    anetNonBlock(NULL,server.module_blocked_pipe[0]);
+    anetNonBlock(NULL,server.module_blocked_pipe[1]);
 }
 
 /* Load all the modules in the server.loadmodule_queue list, which is
