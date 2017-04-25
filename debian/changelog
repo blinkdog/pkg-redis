@@ -1,3 +1,9 @@
+redis (4:4.0-rc3-1) UNRELEASED; urgency=medium
+
+  * New upstream RC release.
+
+ -- Chris Lamb <lamby@debian.org>  Tue, 25 Apr 2017 22:37:56 +0200
+
 redis (4:4.0-rc2-4) experimental; urgency=medium
 
   * Use --cpu-list 0 (not --cpu-list 1) to avoid FTBFS on single-CPU machines.
