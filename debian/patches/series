@@ -4,3 +4,4 @@
 0005-SOURCE_DATE_EPOCH.patch
 0006-Skip-logging-tests-as-not-all-architectures-support-.patch
 0008-Drop-tests-with-timing-issues.patch
+0007-Disable-active-defrag-tests-as-we-do-not-use-the-mod.patch
