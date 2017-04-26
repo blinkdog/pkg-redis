@@ -3,15 +3,17 @@ Date: Fri, 30 Oct 2015 10:53:42 +0000
 Subject: use-system-jemalloc
 
 ---
- src/Makefile  | 5 ++---
- src/debug.c   | 6 +++---
- src/zmalloc.c | 8 ++++----
- src/zmalloc.h | 2 +-
- 4 files changed, 10 insertions(+), 11 deletions(-)
+ src/Makefile  |  5 ++---
+ src/object.c  |  3 +++
+ src/zmalloc.c | 12 ++++++------
+ src/zmalloc.h |  2 +-
+ 4 files changed, 12 insertions(+), 10 deletions(-)
 
---- pkg-redis.orig/src/Makefile
-+++ pkg-redis/src/Makefile
-@@ -104,9 +104,8 @@ ifeq ($(MALLOC),tcmalloc_minimal)
+diff --git a/src/Makefile b/src/Makefile
+index 8f42943..f0efa78 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -115,9 +115,8 @@ ifeq ($(MALLOC),tcmalloc_minimal)
  endif
  
  ifeq ($(MALLOC),jemalloc)
@@ -23,36 +25,10 @@ Subject: use-system-jemalloc
  endif
  
  REDIS_CC=$(QUIET_CC)$(CC) $(FINAL_CFLAGS)
---- pkg-redis.orig/src/zmalloc.c
-+++ pkg-redis/src/zmalloc.c
-@@ -62,10 +62,10 @@ void zlibc_free(void *ptr) {
- #define realloc(ptr,size) tc_realloc(ptr,size)
- #define free(ptr) tc_free(ptr)
- #elif defined(USE_JEMALLOC)
--#define malloc(size) je_malloc(size)
--#define calloc(count,size) je_calloc(count,size)
--#define realloc(ptr,size) je_realloc(ptr,size)
--#define free(ptr) je_free(ptr)
-+#define malloc(size) malloc(size)
-+#define calloc(count,size) calloc(count,size)
-+#define realloc(ptr,size) realloc(ptr,size)
-+#define free(ptr) free(ptr)
- #endif
- 
- #define update_zmalloc_stat_alloc(__n) do { \
---- pkg-redis.orig/src/zmalloc.h
-+++ pkg-redis/src/zmalloc.h
-@@ -50,7 +50,7 @@
- #include <jemalloc/jemalloc.h>
- #if (JEMALLOC_VERSION_MAJOR == 2 && JEMALLOC_VERSION_MINOR >= 1) || (JEMALLOC_VERSION_MAJOR > 2)
- #define HAVE_MALLOC_SIZE 1
--#define zmalloc_size(p) je_malloc_usable_size(p)
-+#define zmalloc_size(p) malloc_usable_size(p)
- #else
- #error "Newer version of jemalloc required"
- #endif
---- pkg-redis.orig/src/object.c
-+++ pkg-redis/src/object.c
+diff --git a/src/object.c b/src/object.c
+index 08c9ad9..752bbdf 100644
+--- a/src/object.c
++++ b/src/object.c
 @@ -36,6 +36,9 @@
  #define strtold(a,b) ((long double)strtod((a),(b)))
  #endif
@@ -63,3 +39,39 @@ Subject: use-system-jemalloc
  /* ===================== Creation and parsing of objects ==================== */
  
  robj *createObject(int type, void *ptr) {
+diff --git a/src/zmalloc.c b/src/zmalloc.c
+index f653760..a3be7ac 100644
+--- a/src/zmalloc.c
++++ b/src/zmalloc.c
+@@ -62,12 +62,12 @@ void zlibc_free(void *ptr) {
+ #define realloc(ptr,size) tc_realloc(ptr,size)
+ #define free(ptr) tc_free(ptr)
+ #elif defined(USE_JEMALLOC)
+-#define malloc(size) je_malloc(size)
+-#define calloc(count,size) je_calloc(count,size)
+-#define realloc(ptr,size) je_realloc(ptr,size)
+-#define free(ptr) je_free(ptr)
+-#define mallocx(size,flags) je_mallocx(size,flags)
+-#define dallocx(ptr,flags) je_dallocx(ptr,flags)
++#define malloc(size) malloc(size)
++#define calloc(count,size) calloc(count,size)
++#define realloc(ptr,size) realloc(ptr,size)
++#define free(ptr) free(ptr)
++#define mallocx(size,flags) mallocx(size,flags)
++#define dallocx(ptr,flags) dallocx(ptr,flags)
+ #endif
+ 
+ #define update_zmalloc_stat_alloc(__n) do { \
+diff --git a/src/zmalloc.h b/src/zmalloc.h
+index b6d4e1d..6b4200c 100644
+--- a/src/zmalloc.h
++++ b/src/zmalloc.h
+@@ -50,7 +50,7 @@
+ #include <jemalloc/jemalloc.h>
+ #if (JEMALLOC_VERSION_MAJOR == 2 && JEMALLOC_VERSION_MINOR >= 1) || (JEMALLOC_VERSION_MAJOR > 2)
+ #define HAVE_MALLOC_SIZE 1
+-#define zmalloc_size(p) je_malloc_usable_size(p)
++#define zmalloc_size(p) malloc_usable_size(p)
+ #else
+ #error "Newer version of jemalloc required"
+ #endif

@@ -1,4 +1,3 @@
-0001-fix-ftbfs-on-kfreebsd.patch
 0002-fix-ftbfs-on-kfreebsd.patch
 0003-use-system-jemalloc.patch
 0004-dpkg-buildflags.patch

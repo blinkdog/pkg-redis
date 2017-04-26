@@ -9,15 +9,15 @@ Subject: Add CPPFLAGS in upstream makefiles
  3 files changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/deps/hiredis/Makefile b/deps/hiredis/Makefile
-index ddcc4e4..b547f6a 100644
+index 9a4de83..4c8a8e4 100644
 --- a/deps/hiredis/Makefile
 +++ b/deps/hiredis/Makefile
-@@ -28,7 +28,7 @@ CC:=$(shell sh -c 'type $(CC) >/dev/null 2>/dev/null && echo $(CC) || echo gcc')
+@@ -41,7 +41,7 @@ CXX:=$(shell sh -c 'type $(CXX) >/dev/null 2>/dev/null && echo $(CXX) || echo g+
  OPTIMIZATION?=-O3
  WARNINGS=-Wall -W -Wstrict-prototypes -Wwrite-strings
- DEBUG?= -g -ggdb
--REAL_CFLAGS=$(OPTIMIZATION) -fPIC $(CFLAGS) $(WARNINGS) $(DEBUG) $(ARCH)
-+REAL_CFLAGS=$(OPTIMIZATION) -fPIC $(CFLAGS) $(WARNINGS) $(DEBUG) $(ARCH) $(CPPFLAGS)
+ DEBUG_FLAGS?= -g -ggdb
+-REAL_CFLAGS=$(OPTIMIZATION) -fPIC $(CFLAGS) $(WARNINGS) $(DEBUG_FLAGS) $(ARCH)
++REAL_CFLAGS=$(OPTIMIZATION) -fPIC $(CFLAGS) $(WARNINGS) $(DEBUG_FLAGS) $(ARCH) $(CPPFLAGS)
  REAL_LDFLAGS=$(LDFLAGS) $(ARCH)
  
  DYLIBSUFFIX=so
@@ -35,10 +35,10 @@ index 1dd894b..12ada21 100644
  
  linenoise.o: linenoise.h linenoise.c
 diff --git a/src/Makefile b/src/Makefile
-index ccbcb1c..a39229b 100644
+index f0efa78..5f00036 100644
 --- a/src/Makefile
 +++ b/src/Makefile
-@@ -107,7 +107,7 @@ ifeq ($(MALLOC),jemalloc)
+@@ -119,7 +119,7 @@ ifeq ($(MALLOC),jemalloc)
  	FINAL_LIBS+= -ljemalloc
  endif
  
