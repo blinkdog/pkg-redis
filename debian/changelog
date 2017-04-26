@@ -1,10 +1,10 @@
-redis (4:4.0-rc3-1) UNRELEASED; urgency=medium
+redis (4:4.0-rc3-1) experimental; urgency=medium
 
   * New upstream RC release.
   * Refresh patches.
   * Disable active defrag tests as we do not use the modified jemalloc.
 
- -- Chris Lamb <lamby@debian.org>  Tue, 25 Apr 2017 22:37:56 +0200
+ -- Chris Lamb <lamby@debian.org>  Wed, 26 Apr 2017 09:48:14 +0200
 
 redis (4:4.0-rc2-4) experimental; urgency=medium
 
