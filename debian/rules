@@ -4,7 +4,7 @@ include /usr/share/dpkg/buildflags.mk
 
 export CFLAGS CPPFLAGS LDFLAGS
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
-export DEB_LDFLAGS_MAINT_APPEND = -ldl
+export DEB_LDFLAGS_MAINT_APPEND = -ldl -latomic
 
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 	NUMJOBS = $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
@@ -32,9 +32,12 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	taskset --cpu-list 0 ./runtest-sentinel
 endif
 
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -f src/release.h
+
 override_dh_compress:
 	dh_compress -Xredis-trib.rb
 
-clean:
-	dh $@
-	rm -f src/release.h
+override_dh_installchangelogs:
+	dh_installchangelogs --keep 00-RELEASENOTES
