@@ -1,5 +1,5 @@
 From: Chris Lamb <lamby@debian.org>
-Date: Sat, 5 Aug 2017 21:00:20 -0400
+Date: Mon, 14 Aug 2017 07:33:19 -0700
 Subject: Drop tests with timing issues.
 
 ---

@@ -4,12 +4,11 @@ Priority: optional
 Maintainer: Chris Lamb <lamby@debian.org>
 Build-Depends:
  debhelper (>= 10),
- dh-systemd (>= 1.5),
  dpkg-dev (>= 1.17.14),
  libjemalloc-dev [linux-any],
  procps <!nocheck>,
  tcl <!nocheck>
-Standards-Version: 4.0.0
+Standards-Version: 4.1.0
 Homepage: http://redis.io/
 Vcs-Git: https://github.com/lamby/pkg-redis.git
 Vcs-Browser: https://github.com/lamby/pkg-redis
