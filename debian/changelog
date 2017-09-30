@@ -2,7 +2,7 @@ redis (4:4.0.2-2~bpo9+1) stretch-backports; urgency=medium
 
   * Rebuild for stretch-backports.
 
- -- Chris Lamb <lamby@debian.org>  Sat, 30 Sep 2017 10:01:02 +0100
+ -- Chris Lamb <lamby@debian.org>  Sat, 30 Sep 2017 10:03:10 +0100
 
 redis (4:4.0.2-2) unstable; urgency=medium
 
