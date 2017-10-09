@@ -1,0 +1,112 @@
+#!/bin/sh
+
+for BINARY in redis-server redis-sentinel
+do
+	for MODE in default templated
+	do
+		case "${BINARY}" in
+		redis-server)
+			NAME="redis"
+			;;
+		redis-sentinel)
+			NAME="sentinel"
+			;;
+		esac
+
+		case "${MODE}" in
+		default)
+			EXTRA="Alias=${NAME}.service"
+			TARGET="debian/${BINARY}.service"
+			NAMESPACED="${NAME}"
+			DESCRIPTION="Advanced key-value store"
+			;;
+		templated)
+			EXTRA=""
+			TARGET="debian/${BINARY}@.service"
+			NAMESPACED="${NAME}-%i"
+			DESCRIPTION="Advanced key-value store (%I)"
+			;;
+		esac
+
+		: >${TARGET}
+
+		if [ "${MODE}" = "templated" ]
+		then
+			cat >> ${TARGET} <<EOF
+# Templated service file for ${BINARY}(1)
+#
+# Instructions for use:
+#
+#   $ cp /etc/redis/${NAME}.conf /etc/redis/${NAME}-myname.conf
+#
+#   $ sed -i \\
+#       -e 's@port 6379@port 6380@' \\
+#       -e 's@pidfile /var/run/redis/${BINARY}.pid@pidfile /var/run/redis/${BINARY}-myname.pid@' \\
+#       -e 's@logfile /var/log/redis/${BINARY}.log@logfile /var/log/redis/${BINARY}-myname.log@' \\
+#       -e 's@unixsocket /var/run/redis/${BINARY}.sock@unixsocket /var/run/redis/${BINARY}-myname.sock@' \\
+#       /etc/redis/${NAME}-myname.conf
+#
+#   $ systemctl start ${BINARY}@myname.service
+#
+#  -- Chris Lamb <lamby@debian.org>  Mon, 09 Oct 2017 22:17:24 +0100
+EOF
+		fi
+	
+		cat >> ${TARGET} <<EOF
+[Unit]
+Description=${DESCRIPTION}
+After=network.target
+Documentation=http://redis.io/documentation, man:${BINARY}(1)
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/${BINARY} /etc/redis/${NAMESPACED}.conf
+PIDFile=/var/run/${NAMESPACED}/${BINARY}.pid
+TimeoutStopSec=0
+Restart=always
+User=redis
+Group=redis
+RuntimeDirectory=${NAMESPACED}
+RuntimeDirectoryMode=2755
+
+ExecStartPre=-/bin/run-parts --verbose /etc/redis/${BINARY}.pre-up.d
+ExecStartPost=-/bin/run-parts --verbose /etc/redis/${BINARY}.post-up.d
+ExecStop=-/bin/run-parts --verbose /etc/redis/${BINARY}.pre-down.d
+ExecStop=/bin/kill -s TERM \$MAINPID
+ExecStopPost=-/bin/run-parts --verbose /etc/redis/${BINARY}.post-down.d
+
+UMask=007
+PrivateTmp=yes
+LimitNOFILE=65535
+PrivateDevices=yes
+ProtectHome=yes
+ReadOnlyDirectories=/
+ReadWriteDirectories=-/var/lib/redis
+ReadWriteDirectories=-/var/log/redis
+ReadWriteDirectories=-/var/run/${NAMESPACED}
+
+NoNewPrivileges=true
+CapabilityBoundingSet=CAP_SETGID CAP_SETUID CAP_SYS_RESOURCE
+MemoryDenyWriteExecute=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# ${BINARY} can write to its own config file when in cluster mode so we
+# permit writing there by default. If you are not using this feature, it is
+# recommended that you replace the following lines with "ProtectSystem=full".
+ProtectSystem=true
+ReadWriteDirectories=-/etc/redis
+
+[Install]
+WantedBy=multi-user.target
+EOF
+		if [ "${EXTRA}" != "" ]
+		then
+			echo "${EXTRA}" >> "${TARGET}"
+		fi
+	done
+done
