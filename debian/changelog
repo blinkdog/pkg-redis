@@ -1,3 +1,12 @@
+redis (4:4.0.2-3~bpo9+2) stretch-backports; urgency=medium
+
+  * Rebuild for stretch-backports.
+    - Relax debhelper Build-Depends to become satisfiable in
+      stretch-backports.
+  * Update debian/gbp.conf to reflect backports debian-branch.
+
+ -- Chris Lamb <lamby@debian.org>  Wed, 18 Oct 2017 08:26:05 -0400
+
 redis (4:4.0.2-3~bpo9+1) stretch-backports; urgency=medium
 
   * Rebuild for stretch-backports.
