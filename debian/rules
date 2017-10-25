@@ -20,6 +20,7 @@ endif
 	dh $@ --with systemd
 
 override_dh_auto_install:
+	debian/bin/generate-parts
 	debian/bin/generate-systemd-service-files
 
 override_dh_auto_build:
